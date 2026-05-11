@@ -1,0 +1,17 @@
+# Binaries
+*.exe
+*.exe~
+ssh-portfolio
+portfolio
+
+# Go build artifacts
+/dist/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
