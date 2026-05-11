@@ -1,13 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/ssh"
+	"github.com/charmbracelet/wish"
+	"github.com/charmbracelet/wish/bubbletea"
+	"github.com/charmbracelet/wish/logging"
 )
 
 const (
@@ -528,10 +535,46 @@ LinkedIn: https://www.linkedin.com/in/arshad-akl/`,
 	}
 }
 
+func teaHandler(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+	pty, _, _ := s.Pty()
+	m := NewModel()
+	m.width = pty.Window.Width
+	m.height = pty.Window.Height
+	return m, []tea.ProgramOption{
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	}
+}
+
 func main() {
-	p := tea.NewProgram(NewModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	s, err := wish.NewServer(
+		wish.WithAddress("0.0.0.0:22"),
+		wish.WithHostKeyPath("/app/keys/id_ed25519"),
+		wish.WithMiddleware(
+			bubbletea.Middleware(teaHandler),
+			logging.Middleware(),
+		),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not start server: %v\n", err)
 		os.Exit(1)
 	}
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	fmt.Println("SSH portfolio server running on 0.0.0.0:22")
+
+	go func() {
+		if err := s.ListenAndServe(); err != nil {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		}
+	}()
+
+	<-done
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s.Shutdown(ctx)
+	fmt.Println("Server stopped")
 }
