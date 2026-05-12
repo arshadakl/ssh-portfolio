@@ -1,0 +1,35 @@
+name: Deploy SSH Portfolio
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GCP
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          port: 2234
+          script: |
+            cd ~/ssh-portfolio
+            git pull origin main
+            docker build -t portfolio-ssh .
+            docker stop portfolio-ssh || true
+            docker rm portfolio-ssh || true
+            docker run -d \
+              --name portfolio-ssh \
+              --restart unless-stopped \
+              --security-opt no-new-privileges:true \
+              --memory="128m" \
+              --cpus="0.5" \
+              -p 22:22 \
+              -v portfolio-keys:/app/keys \
+              portfolio-ssh
+            echo "Deploy complete"
