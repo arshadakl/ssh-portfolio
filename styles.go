@@ -14,8 +14,8 @@ var (
 	colorLink     = lipgloss.Color("75")  // clickable hyperlinks (soft blue)
 )
 
-func styleOrange() lipgloss.Style { return lipgloss.NewStyle().Foreground(colorOrange) }
-func styleText() lipgloss.Style   { return lipgloss.NewStyle().Foreground(colorText) }
-func styleDim() lipgloss.Style    { return lipgloss.NewStyle().Foreground(colorDim) }
-func styleGreen() lipgloss.Style  { return lipgloss.NewStyle().Foreground(colorGreen) }
-func styleLink() lipgloss.Style   { return lipgloss.NewStyle().Foreground(colorLink) }
+func styleOrange(r *lipgloss.Renderer) lipgloss.Style { return r.NewStyle().Foreground(colorOrange) }
+func styleText(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Foreground(colorText) }
+func styleDim(r *lipgloss.Renderer) lipgloss.Style    { return r.NewStyle().Foreground(colorDim) }
+func styleGreen(r *lipgloss.Renderer) lipgloss.Style  { return r.NewStyle().Foreground(colorGreen) }
+func styleLink(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Foreground(colorLink) }

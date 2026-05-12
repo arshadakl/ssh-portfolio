@@ -17,7 +17,8 @@ import (
 
 func teaHandler(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	pty, _, _ := s.Pty()
-	m := NewModel()
+	renderer := bubbletea.MakeRenderer(s)
+	m := NewModel(renderer)
 	m.width = pty.Window.Width
 	m.height = pty.Window.Height
 	return m, []tea.ProgramOption{

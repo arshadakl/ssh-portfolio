@@ -11,7 +11,7 @@ import (
 // ── splash ──────────────────────────────────────────────────────────────────
 
 func (m Model) renderSplash() string {
-	splashStyle := lipgloss.NewStyle().
+	splashStyle := m.renderer.NewStyle().
 		Align(lipgloss.Center, lipgloss.Center).
 		Width(m.width).Height(m.height).
 		Background(colorBg).Foreground(colorOrange)
@@ -85,42 +85,39 @@ func (m Model) sidebarWidth() int {
 // ── header ───────────────────────────────────────────────────────────────────
 
 func (m Model) renderHeader() string {
-	leftText  := styleOrange().Bold(true).Render("arshad@portfolio:~")
-	rightText := styleGreen().Render("online ●")
+	leftText  := styleOrange(m.renderer).Bold(true).Render("arshad@portfolio:~")
+	rightText := styleGreen(m.renderer).Render("online ●")
 
 	leftW  := lipgloss.Width(leftText)
 	rightW := lipgloss.Width(rightText)
-	// Padding(0,1) = 1 left + 1 right = 2 total; inner area = m.width - 2
 	centerW := m.width - leftW - rightW - 2
 	if centerW < 0 {
 		centerW = 0
 	}
 
-	// Fill center with ✦ icons (Claude brand)
 	const icon = "✦"
-	const slot = 3 // icon(1) + space(2)
+	const slot = 3
 	numIcons := centerW / slot
 	if numIcons < 1 {
 		numIcons = 1
 	}
 	icons := strings.Repeat(icon+"  ", numIcons)
-	// Trim to exact centerW if overflowed
 	for lipgloss.Width(icons) > centerW {
 		icons = icons[:len(icons)-1]
 	}
-	centerCell := lipgloss.NewStyle().
+	centerCell := m.renderer.NewStyle().
 		Width(centerW).
 		Align(lipgloss.Center).
-		Foreground(colorBorder). // subtle dim icons
+		Foreground(colorBorder).
 		Render(icons)
 
-	line := lipgloss.NewStyle().
+	line := m.renderer.NewStyle().
 		Background(colorBg).
 		Width(m.width).
 		Padding(0, 1).
 		Render(leftText + centerCell + rightText)
 
-	sep := lipgloss.NewStyle().
+	sep := m.renderer.NewStyle().
 		Foreground(colorBorder).
 		Width(m.width).
 		Render(strings.Repeat("─", m.width))
@@ -133,23 +130,23 @@ func (m Model) renderHeader() string {
 func (m Model) renderSidebar(w, h int) string {
 	var sb strings.Builder
 
-	navLabel := styleOrange().Bold(true).Render("Navigation")
+	navLabel := styleOrange(m.renderer).Bold(true).Render("Navigation")
 	sb.WriteString(navLabel + "\n\n")
 
 	for i, sec := range m.sections {
 		if i == m.selected {
-			row := styleOrange().Bold(true).Render(fmt.Sprintf("> [%d] %s", i+1, sec.Label))
+			row := styleOrange(m.renderer).Bold(true).Render(fmt.Sprintf("> [%d] %s", i+1, sec.Label))
 			sb.WriteString(row + "\n")
 		} else {
-			row := styleDim().Render(fmt.Sprintf("  [%d] %s", i+1, sec.Label))
+			row := styleDim(m.renderer).Render(fmt.Sprintf("  [%d] %s", i+1, sec.Label))
 			sb.WriteString(row + "\n")
 		}
 	}
 
-	divider := lipgloss.NewStyle().Foreground(colorBorder).Render(strings.Repeat("─", w-2))
+	divider := m.renderer.NewStyle().Foreground(colorBorder).Render(strings.Repeat("─", w-2))
 	sb.WriteString("\n" + divider + "\n\n")
 
-	quickLabel := styleOrange().Bold(true).Render("Quick Info")
+	quickLabel := styleOrange(m.renderer).Bold(true).Render("Quick Info")
 	sb.WriteString(quickLabel + "\n\n")
 
 	infoRows := []struct{ label, value, color string }{
@@ -159,17 +156,17 @@ func (m Model) renderSidebar(w, h int) string {
 		{"Status    ", "Open to work", "green"},
 	}
 	for _, row := range infoRows {
-		label := styleDim().Render(row.label + " : ")
+		label := styleDim(m.renderer).Render(row.label + " : ")
 		var val string
 		if row.color == "green" {
-			val = styleGreen().Bold(true).Render(row.value)
+			val = styleGreen(m.renderer).Bold(true).Render(row.value)
 		} else {
-			val = styleText().Render(row.value)
+			val = styleText(m.renderer).Render(row.value)
 		}
 		sb.WriteString(label + val + "\n")
 	}
 
-	sidebarStyle := lipgloss.NewStyle().
+	sidebarStyle := m.renderer.NewStyle().
 		Width(w).
 		Height(h).
 		Background(colorBg).
@@ -185,15 +182,15 @@ func (m Model) renderSidebar(w, h int) string {
 
 func (m Model) renderContent(w, h int) string {
 	sec    := m.sections[m.selected]
-	innerW := w - 4 // subtract padding (2 left + 2 right)
+	innerW := w - 4
 
-	title  := styleOrange().Bold(true).Render(sec.Label)
-	sep    := styleDim().Render(strings.Repeat("─", innerW))
+	title  := styleOrange(m.renderer).Bold(true).Render(sec.Label)
+	sep    := styleDim(m.renderer).Render(strings.Repeat("─", innerW))
 	header := title + "\n" + sep + "\n"
 	const headerLines = 3
 
 	lines     := m.visibleLines()
-	available := h - headerLines - 1 // reserve 1 row for page indicator
+	available := h - headerLines - 1
 	if available < 1 {
 		available = 1
 	}
@@ -217,13 +214,12 @@ func (m Model) renderContent(w, h int) string {
 		visible = append(visible, "")
 	}
 
-	// page indicator: show section N/6 and scroll % when content is scrollable
 	pageInfo := fmt.Sprintf("%d/%d", m.selected+1, len(m.sections))
 	if maxScroll > 0 {
 		pct := int(float64(start) / float64(maxScroll) * 100)
 		pageInfo = fmt.Sprintf("%d%%  %s", pct, pageInfo)
 	}
-	pageIndicator := lipgloss.NewStyle().
+	pageIndicator := m.renderer.NewStyle().
 		Foreground(colorDim).
 		Width(innerW).
 		Align(lipgloss.Right).
@@ -231,7 +227,7 @@ func (m Model) renderContent(w, h int) string {
 
 	body := header + strings.Join(visible, "\n") + "\n" + pageIndicator
 
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Width(w).
 		Height(h).
 		Background(colorBg).
@@ -244,17 +240,17 @@ func (m Model) renderContent(w, h int) string {
 func (m Model) renderFooter(w int, narrow bool) string {
 	var keys string
 	if narrow {
-		keys = styleDim().Render("←→") + styleText().Render(" navigate") +
-			"  " + styleOrange().Render("w/s") + styleText().Render(" scroll") +
-			"  " + styleDim().Render("q") + styleText().Render(" quit")
+		keys = styleDim(m.renderer).Render("←→") + styleText(m.renderer).Render(" navigate") +
+			"  " + styleOrange(m.renderer).Render("w/s") + styleText(m.renderer).Render(" scroll") +
+			"  " + styleDim(m.renderer).Render("q") + styleText(m.renderer).Render(" quit")
 	} else {
-		keys = styleDim().Render("j/k ↑↓") + styleText().Render(" navigate") +
-			"  " + styleOrange().Render("w/s") + styleText().Render(" scroll") +
-			"  " + styleDim().Render("1-6") + styleText().Render(" jump") +
-			"  " + styleDim().Render("q") + styleText().Render(" quit")
+		keys = styleDim(m.renderer).Render("j/k ↑↓") + styleText(m.renderer).Render(" navigate") +
+			"  " + styleOrange(m.renderer).Render("w/s") + styleText(m.renderer).Render(" scroll") +
+			"  " + styleDim(m.renderer).Render("1-6") + styleText(m.renderer).Render(" jump") +
+			"  " + styleDim(m.renderer).Render("q") + styleText(m.renderer).Render(" quit")
 	}
 
-	tip := styleDim().Render("mouse wheel scrolls content")
+	tip := styleDim(m.renderer).Render("mouse wheel scrolls content")
 
 	keysW := lipgloss.Width(keys)
 	tipW  := lipgloss.Width(tip)
@@ -263,7 +259,7 @@ func (m Model) renderFooter(w int, narrow bool) string {
 		gap = 1
 	}
 
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Background(colorStatusBg).
 		Foreground(colorDim).
 		Width(w).
@@ -283,13 +279,13 @@ func (m Model) renderNarrowLayout() string {
 }
 
 func (m Model) renderNarrowHeader() string {
-	left  := styleOrange().Bold(true).Render("arshad@portfolio:~")
-	right := styleGreen().Render("online ●")
+	left  := styleOrange(m.renderer).Bold(true).Render("arshad@portfolio:~")
+	right := styleGreen(m.renderer).Render("online ●")
 	gap   := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 4
 	if gap < 1 {
 		gap = 1
 	}
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Background(colorBg).
 		Width(m.width).
 		Padding(0, 1).
@@ -301,9 +297,9 @@ func (m Model) renderNarrowNavbar() string {
 	for i, sec := range m.sections {
 		var item string
 		if i == m.selected {
-			item = styleOrange().Bold(true).Padding(0, 1).Render("▸ " + sec.Label)
+			item = styleOrange(m.renderer).Bold(true).Padding(0, 1).Render("▸ " + sec.Label)
 		} else {
-			item = styleDim().Padding(0, 1).Render(sec.Icon + " " + sec.Label)
+			item = styleDim(m.renderer).Padding(0, 1).Render(sec.Icon + " " + sec.Label)
 		}
 		sb.WriteString(item)
 		if i < len(m.sections)-1 {
@@ -311,7 +307,7 @@ func (m Model) renderNarrowNavbar() string {
 		}
 	}
 
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Background(colorBg).
 		Width(m.width).
 		BorderBottom(true).
@@ -329,8 +325,8 @@ func (m Model) renderNarrowContent() string {
 	sec    := m.sections[m.selected]
 	innerW := m.width - 4
 
-	title  := styleOrange().Bold(true).Render(sec.Label)
-	sep    := styleDim().Render(strings.Repeat("─", innerW))
+	title  := styleOrange(m.renderer).Bold(true).Render(sec.Label)
+	sep    := styleDim(m.renderer).Render(strings.Repeat("─", innerW))
 	header := title + "\n" + sep + "\n"
 	const headerLines = 3
 
@@ -363,7 +359,7 @@ func (m Model) renderNarrowContent() string {
 		pct := int(float64(start) / float64(maxScroll) * 100)
 		pageInfo = fmt.Sprintf("%d%%  %s", pct, pageInfo)
 	}
-	pageIndicator := lipgloss.NewStyle().
+	pageIndicator := m.renderer.NewStyle().
 		Foreground(colorDim).
 		Width(innerW).
 		Align(lipgloss.Right).
@@ -371,7 +367,7 @@ func (m Model) renderNarrowContent() string {
 
 	body := header + strings.Join(visible, "\n") + "\n" + pageIndicator
 
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Width(m.width).
 		Height(h).
 		Background(colorBg).

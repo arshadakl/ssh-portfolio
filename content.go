@@ -15,22 +15,22 @@ func hyperlink(url, text string) string {
 	return "\x1b]8;;" + url + "\x1b\\" + text + "\x1b]8;;\x1b\\"
 }
 
-func buildSections() []Section {
+func buildSections(r *lipgloss.Renderer) []Section {
 	return []Section{
-		{Key: "whoami", Label: "whoami", Icon: "◈", Lines: buildWhoami()},
-		{Key: "experience", Label: "experience", Icon: "▸", Lines: buildExperience()},
-		{Key: "projects", Label: "projects", Icon: "⬡", Lines: buildProjects()},
-		{Key: "recognition", Label: "recognition", Icon: "⚡", Lines: buildRecognition()},
-		{Key: "skills", Label: "skills", Icon: "⬢", Lines: buildSkills()},
-		{Key: "contact", Label: "contact", Icon: "✉", Lines: buildContact()},
+		{Key: "whoami", Label: "whoami", Icon: "◈", Lines: buildWhoami(r)},
+		{Key: "experience", Label: "experience", Icon: "▸", Lines: buildExperience(r)},
+		{Key: "projects", Label: "projects", Icon: "⬡", Lines: buildProjects(r)},
+		{Key: "recognition", Label: "recognition", Icon: "⚡", Lines: buildRecognition(r)},
+		{Key: "skills", Label: "skills", Icon: "⬢", Lines: buildSkills(r)},
+		{Key: "contact", Label: "contact", Icon: "✉", Lines: buildContact(r)},
 	}
 }
 
-func buildWhoami() []string {
-	orange := styleOrange().Bold(true)
-	dim    := styleDim()
-	green  := styleGreen()
-	text   := styleText()
+func buildWhoami(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	green  := styleGreen(r)
+	text   := styleText(r)
 
 	return []string{
 		orange.Render("Arshad A."),
@@ -48,7 +48,7 @@ func buildWhoami() []string {
 		"    in a monorepo. " + green.Render("TypeScript") + " throughout.",
 		"",
 		orange.Render("> Security Background"),
-		"  • " + lipgloss.NewStyle().Foreground(colorOrange).Render("CERT-In Hall of Fame") + " (Government of India).",
+		"  • " + r.NewStyle().Foreground(colorOrange).Render("CERT-In Hall of Fame") + " (Government of India).",
 		"  • Bug bounty focus: web app vulnerabilities, API security,",
 		"    and business logic flaws.",
 		"",
@@ -58,11 +58,11 @@ func buildWhoami() []string {
 	}
 }
 
-func buildExperience() []string {
-	orange := styleOrange().Bold(true)
-	dim    := styleDim()
-	green  := styleGreen()
-	text   := styleText()
+func buildExperience(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	green  := styleGreen(r)
+	text   := styleText(r)
 
 	return []string{
 		orange.Render("ELT Global Pvt Ltd") + text.Render(" — Software Engineer"),
@@ -99,10 +99,10 @@ func buildExperience() []string {
 	}
 }
 
-func buildProjects() []string {
-	orange := styleOrange().Bold(true)
-	dim    := styleDim()
-	green  := styleGreen()
+func buildProjects(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	green  := styleGreen(r)
 
 	return []string{
 		orange.Render("Triple i Admin Portal"),
@@ -140,12 +140,12 @@ func buildProjects() []string {
 	}
 }
 
-func buildRecognition() []string {
-	orange := styleOrange().Bold(true)
-	dim    := styleDim()
-	green  := styleGreen()
-	text   := styleText()
-	link   := styleLink()
+func buildRecognition(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	green  := styleGreen(r)
+	text   := styleText(r)
+	link   := styleLink(r)
 
 	return []string{
 		orange.Render("CERT-In Hall of Fame") + text.Render(" — Government of India"),
@@ -173,10 +173,10 @@ func buildRecognition() []string {
 	}
 }
 
-func buildSkills() []string {
-	orange := styleOrange().Bold(true)
-	green  := styleGreen()
-	dim    := styleDim()
+func buildSkills(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	green  := styleGreen(r)
+	dim    := styleDim(r)
 
 	return []string{
 		orange.Render("> Tech"),
@@ -197,10 +197,10 @@ func buildSkills() []string {
 	}
 }
 
-func buildContact() []string {
-	orange := styleOrange().Bold(true)
-	dim    := styleDim()
-	link   := styleLink()
+func buildContact(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	link   := styleLink(r)
 
 	return []string{
 		orange.Render("Get in touch"),
@@ -219,9 +219,9 @@ func buildContact() []string {
 			"linkedin.com/in/arshad-akl",
 		)),
 		"",
-		styleDim().Render("  Open to full-time roles in product engineering or"),
-		styleDim().Render("  security-adjacent engineering."),
+		styleDim(r).Render("  Open to full-time roles in product engineering or"),
+		styleDim(r).Render("  security-adjacent engineering."),
 		"",
-		lipgloss.NewStyle().Foreground(colorGreen).Bold(true).Render("  Status: Open to work"),
+		r.NewStyle().Foreground(colorGreen).Bold(true).Render("  Status: Open to work"),
 	}
 }

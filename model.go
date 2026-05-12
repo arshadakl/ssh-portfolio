@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type ViewMode int
@@ -16,6 +17,7 @@ const (
 type tickMsg time.Time
 
 type Model struct {
+	renderer  *lipgloss.Renderer
 	width     int
 	height    int
 	selected  int
@@ -25,10 +27,11 @@ type Model struct {
 	sections  []Section
 }
 
-func NewModel() Model {
+func NewModel(r *lipgloss.Renderer) Model {
 	return Model{
+		renderer: r,
 		mode:     ViewLoading,
-		sections: buildSections(),
+		sections: buildSections(r),
 	}
 }
 
@@ -101,7 +104,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 
-		// section navigation — j/k and ↑/↓ both navigate
 		case "j", "down":
 			m.navigateNext()
 		case "k", "up":
@@ -115,7 +117,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.navigatePrev()
 			}
 
-		// content scrolling — w/s (mouse wheel also works)
 		case "w":
 			m.scrollUp()
 		case "s":
@@ -129,7 +130,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.scrollDown()
 			}
 
-		// direct section jump
 		case "1":
 			m.jumpTo(0)
 		case "2":
