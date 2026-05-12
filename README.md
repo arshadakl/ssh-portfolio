@@ -2,6 +2,12 @@
 
 Interactive terminal portfolio built with Go + Bubbletea + Lipgloss.
 
+## Try it
+
+```bash
+ssh arshadakl.in
+```
+
 ## Build & Run
 
 **Clone**
