@@ -155,7 +155,7 @@ func buildProjects(r *lipgloss.Renderer) []string {
 		"",
 		"",
 		orange.Render("Freelance Marketplace"),
-		dim.Render("Next.js, PostgreSQL, WebRTC, Stripe"),
+		dim.Render("Next.js, MongoDB, WebRTC, Stripe"),
 		"",
 		"Developed a freelance platform matching clients with top",
 		"talent. Implemented a ranking system based on client feedback.",
