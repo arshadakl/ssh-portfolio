@@ -1,6 +1,10 @@
 package main
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 type Section struct {
 	Key   string
@@ -17,44 +21,93 @@ func hyperlink(url, text string) string {
 
 func buildSections(r *lipgloss.Renderer) []Section {
 	return []Section{
+		{Key: "home", Label: "home", Icon: "⌂", Lines: buildHome(r)},
 		{Key: "whoami", Label: "whoami", Icon: "◈", Lines: buildWhoami(r)},
 		{Key: "experience", Label: "experience", Icon: "▸", Lines: buildExperience(r)},
 		{Key: "projects", Label: "projects", Icon: "⬡", Lines: buildProjects(r)},
+		// contribute renders dynamically — see contribute.go
+		{Key: "contribute", Label: "contribute", Icon: "→", Lines: nil},
 		{Key: "recognition", Label: "recognition", Icon: "⚡", Lines: buildRecognition(r)},
 		{Key: "skills", Label: "skills", Icon: "⬢", Lines: buildSkills(r)},
-		{Key: "contact", Label: "contact", Icon: "✉", Lines: buildContact(r)},
+		{Key: "contact", Label: "contact", Icon: "💬", Lines: buildContact(r)},
 	}
+}
+
+func buildHome(r *lipgloss.Renderer) []string {
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	green  := styleGreen(r).Bold(true)
+	text   := styleText(r)
+	pink   := stylePink(r)
+
+	// metric card: rounded border, bold value over dim label
+	card := func(value, label string) string {
+		return r.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorBorder).
+			Width(20).
+			Padding(0, 1).
+			Render(green.Render(value) + "\n" + dim.Render(label))
+	}
+
+	lines := []string{
+		orange.Render("Arshad A") + text.Render(" — Full-stack Engineer & Security Researcher"),
+		text.Render("I find security holes before attackers do."),
+		"",
+	}
+
+	// 2x3 card grid — split joined rows into single lines so scroll math holds
+	grid := [][2][2]string{
+		{{"100k+", "monthly users"}, {"16M+", "API requests/mo"}},
+		{{"200k+", "records secured"}, {"99.9%", "platform uptime"}},
+		{{"30+", "enterprise modules"}, {"2+ yrs", "production eng."}},
+	}
+	for _, pair := range grid {
+		row := lipgloss.JoinHorizontal(lipgloss.Top,
+			card(pair[0][0], pair[0][1]), " ", card(pair[1][0], pair[1][1]))
+		lines = append(lines, strings.Split(row, "\n")...)
+	}
+
+	return append(lines,
+		"",
+		pink.Render("CERT-In Hall of Fame")+text.Render(" (Gov. of India) — national recognition"),
+		text.Render("for responsible vulnerability disclosure."),
+		"",
+		green.Render("Open to: ")+text.Render("Frontend Engineer · Full-stack Engineer roles"),
+		"",
+		dim.Render("j/k or 1-8 navigate · w/s or wheel scroll"),
+		dim.Render("':' commands · ':message' to send a note · 'q' quit"),
+	)
 }
 
 func buildWhoami(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
 	green  := styleGreen(r)
 	text   := styleText(r)
+	pink   := stylePink(r)
 
 	return []string{
 		orange.Render("Arshad A."),
 		text.Render("Full-stack engineer + security researcher."),
-		dim.Render("2+ years in production engineering."),
+		text.Render("I find security holes before attackers do — then build"),
+		text.Render("software where those holes don't exist."),
 		"",
-		orange.Render("> What I've Built"),
-		"  • Shipped two products at " + green.Render("ELT Global") + " – student-facing LMS and",
-		"    admin operations portal.",
-		"  • Serving " + green.Render("100,000+") + " monthly users, " + green.Render("10,000+") + " DAU,",
-		"    " + green.Render("16M+ API") + " requests/month.",
-		"",
-		orange.Render("> Tech Stack"),
-		"  • " + green.Render("NestJS") + " / " + green.Render("Express.js") + " backends + " + green.Render("Next.js") + " frontends",
-		"    in a monorepo. " + green.Render("TypeScript") + " throughout.",
+		orange.Render("> Current Impact"),
+		"  • Two production products at " + green.Render("ELT Global") + " (EdTech): student-facing",
+		"    LMS + admin operations portal — " + green.Render("10k+ DAU") + ".",
+		"  • " + green.Render("100k+ monthly") + " users · " + green.Render("16M+ API") + " requests/mo · " + green.Render("99.9%") + " uptime.",
+		"  • " + green.Render("NestJS") + " / " + green.Render("Express.js") + " backends + " + green.Render("Next.js") + " frontends,",
+		"    " + green.Render("TypeScript") + " throughout.",
 		"",
 		orange.Render("> Security Background"),
-		"  • " + r.NewStyle().Foreground(colorOrange).Render("CERT-In Hall of Fame") + " (Government of India).",
+		"  • " + pink.Render("CERT-In Hall of Fame") + " (Government of India).",
+		"  • Protected " + green.Render("200k+ student records") + " via responsible disclosure.",
 		"  • Bug bounty focus: web app vulnerabilities, API security,",
 		"    and business logic flaws.",
 		"",
 		orange.Render("> Currently"),
-		"  Exploring new opportunities. Open to full-time roles in",
-		"  product engineering or security-adjacent engineering.",
+		"  Software Engineer @ ELT Global, Bangalore.",
+		"  Open to " + green.Render("Frontend") + " / " + green.Render("Full-stack") + " / " + green.Render("Product Engineer") + " roles.",
 	}
 }
 
@@ -107,8 +160,8 @@ func buildProjects(r *lipgloss.Renderer) []string {
 
 	return []string{
 		orange.Render("Triple i Admin Portal"),
-		dim.Render("Next.js, NestJS, MongoDB, PostgreSQL, TanStack (Query/Table/Form),"),
-		dim.Render("Zustand, Zod, Storybook"),
+		dim.Render("Next.js, NestJS, PostgreSQL, MongoDB, Redis, TanStack, Zustand,"),
+		dim.Render("Zod, Storybook"),
 		"",
 		orange.Render("> Highlights"),
 		"  • SDUI scheduling module — date-keyed lookup map for instant slot",
@@ -126,7 +179,7 @@ func buildProjects(r *lipgloss.Renderer) []string {
 		"",
 		"",
 		orange.Render("Triple i Learning Platform"),
-		dim.Render("Next.js, NestJS, PostgreSQL, HLS, SSE, SDUI"),
+		dim.Render("Next.js, NestJS, PostgreSQL, Redis, HLS, WebRTC, SSE, SDUI"),
 		"",
 		orange.Render("> Highlights"),
 		"  • SDUI-driven exam module: objective, descriptive, and",
@@ -151,7 +204,21 @@ func buildProjects(r *lipgloss.Renderer) []string {
 		"containerized with Docker, reverse proxied through Nginx,",
 		"deployed via GitHub Actions CI/CD.",
 		"  " + dim.Render("GitHub") + "  " + link.Render(hyperlink("https://github.com/arshadakl/ssh-portfolio", "github.com/arshadakl/ssh-portfolio")),
+		"  " + dim.Render("Blog  ") + "  " + link.Render(hyperlink("https://blog.arshadakl.in/my-portfolio-has-no-url-just-an-ssh-command", "blog.arshadakl.in — writeup")),
 		"  " + dim.Render("Try   ") + "  " + green.Render("ssh arshadakl.in"),
+		"",
+		"",
+		orange.Render("Minecraft Portfolio"),
+		dim.Render("Three.js, Voxel, Next.js, Cloudflare Workers"),
+		"",
+		"A 3D portfolio as a walkable Minecraft-style voxel house.",
+		"Scroll moves a camera along a fixed path through the garden",
+		"and rooms — About, Hall of Fame, Experience, Projects,",
+		"Skills, Contact — inside a living scene: a farmer working",
+		"crops, a dog circling the lawn, day/night lighting, passing",
+		"rain, and a hidden bug-hunt mini-game.",
+		"  " + dim.Render("GitHub") + "  " + link.Render(hyperlink("https://github.com/arshadakl/Minecraft-portfolio", "github.com/arshadakl/Minecraft-portfolio")),
+		"  " + dim.Render("Live  ") + "  " + link.Render(hyperlink("https://minecraft.arshadakl.in", "minecraft.arshadakl.in")),
 		"",
 		"",
 		orange.Render("Freelance Marketplace"),
@@ -235,7 +302,7 @@ func buildRecognition(r *lipgloss.Renderer) []string {
 	link   := styleLink(r)
 
 	return []string{
-		orange.Render("CERT-In Hall of Fame") + text.Render(" — Government of India"),
+		stylePink(r).Bold(true).Render("CERT-In Hall of Fame") + text.Render(" — Government of India"),
 		"",
 		"Discovered and responsibly disclosed a critical vulnerability in a",
 		"major Kerala university's official website. Exposed unauthenticated",
@@ -275,8 +342,9 @@ func buildSkills(r *lipgloss.Renderer) []string {
 		"  " + dim.Render("MCP-integrated workflows") + " (Figma, Supabase, GitHub)",
 		"",
 		orange.Render("> Infra"),
-		"  " + green.Render("AWS") + " (EC2/S3/R2), " + green.Render("Supabase") + ", " + green.Render("Docker") + ", CI/CD,",
-		"  Cloudflare, Sentry, Coolify",
+		"  " + green.Render("AWS") + " (EC2/S3) · " + green.Render("GCP") + " · " + green.Render("Docker") + " · CI/CD",
+		"  " + green.Render("Cloudflare") + " (Workers · R2 · D1)",
+		"  " + green.Render("Supabase") + " · Sentry · Coolify",
 		"",
 		orange.Render("> Data & Tooling"),
 		"  " + green.Render("PostgreSQL") + ", " + green.Render("MongoDB") + "  —  OpenAPI Swagger + Codegen,",
@@ -287,28 +355,103 @@ func buildSkills(r *lipgloss.Renderer) []string {
 func buildContact(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
 	dim    := styleDim(r)
+	text   := styleText(r)
 	link   := styleLink(r)
+	green  := styleGreen(r)
+
+	btn := func(label string) string {
+		return stylePill(r).Padding(0, 1).Render(label)
+	}
 
 	return []string{
-		orange.Render("Get in touch"),
+		orange.Render("💬 Let's Talk"),
+		text.Render("I reply to every note — usually within 24h."),
 		"",
-		"  " + dim.Render("Email   ") + "  arshadayanikkal@gmail.com",
-		"  " + dim.Render("Website ") + "  " + link.Render(hyperlink(
-			"https://arshadakl.in",
-			"arshadakl.in",
-		)),
-		"  " + dim.Render("GitHub  ") + "  " + link.Render(hyperlink(
-			"https://github.com/arshadakl",
-			"github.com/arshadakl",
+		"  " + btn(" ENTER ") + text.Render("  opens the message form") + dim.Render("   · or type ") + btn(" :message "),
+		"",
+		text.Render("  Available: ") + dim.Render("Full-time · Contract · Selected freelance"),
+		"",
+		orange.Render("> Elsewhere"),
+		"  " + dim.Render("Resume  ") + "  " + link.Render(hyperlink(
+			"https://arshadakl.in/docs/arshad_2026.pdf",
+			"arshadakl.in/docs/arshad_2026.pdf",
 		)),
 		"  " + dim.Render("LinkedIn") + "  " + link.Render(hyperlink(
 			"https://linkedin.com/in/arshad-akl",
 			"linkedin.com/in/arshad-akl",
 		)),
+		"  " + dim.Render("GitHub  ") + "  " + link.Render(hyperlink(
+			"https://github.com/arshadakl",
+			"github.com/arshadakl",
+		)),
+		"  " + dim.Render("LeetCode") + "  " + link.Render(hyperlink(
+			"https://leetcode.com/u/arshadakl/",
+			"leetcode.com/u/arshadakl",
+		)),
+		"  " + dim.Render("Blog    ") + "  " + link.Render(hyperlink(
+			"https://blog.arshadakl.in",
+			"blog.arshadakl.in",
+		)),
+		"  " + dim.Render("Website ") + "  " + link.Render(hyperlink(
+			"https://arshadakl.in",
+			"arshadakl.in",
+		)),
 		"",
-		styleDim(r).Render("  Open to full-time roles in product engineering or"),
-		styleDim(r).Render("  security-adjacent engineering."),
+		text.Render("  Prefer email? ") + link.Render(hyperlink(
+			"mailto:arshadayanikkal@gmail.com",
+			"arshadayanikkal@gmail.com",
+		)),
 		"",
-		r.NewStyle().Foreground(colorGreen).Bold(true).Render("  Status: Open to work"),
+		green.Bold(true).Render("  Status: Open to work — Frontend / Full-stack roles"),
 	}
+}
+
+// buildContactForm renders the in-section message form. The active field is
+// highlighted with a blinking cursor; Enter on the message field submits.
+func buildContactForm(m Model) []string {
+	r := m.renderer
+	orange := styleOrange(r).Bold(true)
+	dim    := styleDim(r)
+	text   := styleText(r)
+
+	if m.contactSubmitting {
+		return []string{
+			orange.Render("> Sending your message..."),
+			"",
+			dim.Render("  one moment — this goes straight to Arshad's inbox."),
+		}
+	}
+
+	labels := []string{"name", "email", "subject", "message"}
+	values := []string{m.contactName, m.contactEmail, m.contactSubject, m.contactMessage}
+
+	lines := []string{
+		orange.Render("💬 Send a Note"),
+		text.Render("  Fill in the fields below. Enter or Tab moves to the next,"),
+		text.Render("  Enter on message sends, Esc cancels."),
+		"",
+	}
+
+	for i := range labels {
+		label := text.Render(labels[i])
+		value := values[i]
+		cursor := " "
+		if i == m.contactField {
+			label = orange.Render(labels[i])
+			if m.blinkOn {
+				cursor = orange.Render("\u258A")
+			}
+		}
+		lines = append(lines, "  "+label+strings.Repeat(" ", 8-len(labels[i]))+": "+value+cursor)
+	}
+
+	if m.contactResult != "" {
+		lines = append(lines, "", dim.Render("  "+m.contactResult))
+	}
+
+	lines = append(lines,
+		"",
+		dim.Render("  enter/tab next · enter on message sends · esc cancel"),
+	)
+	return lines
 }
