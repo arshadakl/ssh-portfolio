@@ -2,16 +2,18 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
+// Palette: Tokyo Night neutrals + brand orange hero accent (arshadakl.in).
 var (
-	colorBg       = lipgloss.Color("235") // near-black background
-	colorOrange   = lipgloss.Color("208") // primary accent — Claude brand orange
-	colorText     = lipgloss.Color("252") // main body text
-	colorDim      = lipgloss.Color("241") // secondary/dim text
-	colorBorder   = lipgloss.Color("237") // panel borders and dividers
-	colorSelBg    = lipgloss.Color("94")  // selected item background (dark amber)
-	colorGreen    = lipgloss.Color("71")  // success / open-to-work
-	colorStatusBg = lipgloss.Color("236") // footer status bar background
-	colorLink     = lipgloss.Color("75")  // clickable hyperlinks (soft blue)
+	colorBg       = lipgloss.Color("#1a1b26") // deep blue-black background
+	colorText     = lipgloss.Color("#c0caf5") // soft lavender-white body text
+	colorDim      = lipgloss.Color("#565f89") // muted slate secondary text
+	colorBorder   = lipgloss.Color("#3b4261") // panel borders and dividers
+	colorStatusBg = lipgloss.Color("#1f2335") // footer/command bar background
+	colorOrange   = lipgloss.Color("#D9651A") // brand orange — hero accent
+	colorGreen    = lipgloss.Color("#9ece6a") // metrics / open-to-work
+	colorLink     = lipgloss.Color("#7aa2f7") // clickable hyperlinks
+	colorPurple   = lipgloss.Color("#bb9af7") // secondary highlights
+	colorPink     = lipgloss.Color("#f7768e") // security/recognition accents
 )
 
 func styleOrange(r *lipgloss.Renderer) lipgloss.Style { return r.NewStyle().Foreground(colorOrange) }
@@ -19,3 +21,10 @@ func styleText(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Fore
 func styleDim(r *lipgloss.Renderer) lipgloss.Style    { return r.NewStyle().Foreground(colorDim) }
 func styleGreen(r *lipgloss.Renderer) lipgloss.Style  { return r.NewStyle().Foreground(colorGreen) }
 func styleLink(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Foreground(colorLink) }
+func stylePurple(r *lipgloss.Renderer) lipgloss.Style { return r.NewStyle().Foreground(colorPurple) }
+func stylePink(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Foreground(colorPink) }
+
+// stylePill renders the selected navigation item: dark text on brand orange.
+func stylePill(r *lipgloss.Renderer) lipgloss.Style {
+	return r.NewStyle().Background(colorOrange).Foreground(colorBg).Bold(true)
+}
