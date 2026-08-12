@@ -1,6 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +21,12 @@ const (
 
 type tickMsg time.Time
 
+// contactResultMsg is posted back after the async HTTP POST completes.
+type contactResultMsg struct {
+	ok  bool
+	err error
+}
+
 type Model struct {
 	renderer  *lipgloss.Renderer
 	width     int
@@ -25,13 +36,42 @@ type Model struct {
 	mode      ViewMode
 	animFrame int
 	sections  []Section
+
+	// personalization
+	clientIP     string
+	sessionStart time.Time
+
+	// command bar (:)
+	cmdMode  bool
+	cmdInput string
+	cmdMsg   string
+	blinkOn  bool
+
+	// contribute section intent flow
+	intentCursor int
+	intentActive int // -1 = collapsed
+
+	// contact form (in-section, not command-bar wizard)
+	contactFormActive bool   // true when form is open and editable
+	contactField      int    // 0=name, 1=email, 2=subject, 3=message
+	contactSubmitting bool   // true while HTTP POST is in flight
+	contactResult     string // plain-text status shown after submit
+	contactResultOK   bool   // true when contactResult is a success message
+	contactVisited    bool   // true once the visitor has reached the contact section
+	contactName       string
+	contactEmail      string
+	contactSubject    string
+	contactMessage    string
 }
 
-func NewModel(r *lipgloss.Renderer) Model {
+func NewModel(r *lipgloss.Renderer, clientIP string) Model {
 	return Model{
-		renderer: r,
-		mode:     ViewLoading,
-		sections: buildSections(r),
+		renderer:     r,
+		mode:         ViewLoading,
+		sections:     buildSections(r),
+		clientIP:     clientIP,
+		sessionStart: time.Now(),
+		intentActive: -1,
 	}
 }
 
@@ -62,9 +102,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return tickMsg(t)
 			})
 		}
+		// 1s heartbeat drives the footer session timer and cursor blink
+		m.blinkOn = !m.blinkOn
+		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
+			return tickMsg(t)
+		})
+
+	case contactResultMsg:
+		m.contactSubmitting = false
+		m.contactFormActive = false
+		m.contactField = 0
+		m.resetContact()
+		if msg.ok {
+			m.contactResult = "Message sent. I'll respond usually within 24h."
+			m.contactResultOK = true
+		} else {
+			m.contactResult = "Failed to send. Try emailing directly: arshadayanikkal@gmail.com"
+			m.contactResultOK = false
+		}
+		return m, nil
 
 	case tea.MouseMsg:
-		if m.mode != ViewLoading && msg.Action == tea.MouseActionPress {
+		if m.mode != ViewLoading && !m.cmdMode && !m.contactFormActive && msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
 				if m.scrollPos > 0 {
@@ -77,6 +136,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if m.mode == ViewLoading {
+			return m, nil
+		}
+
+		// command bar captures all input while open
+		if m.cmdMode {
+			return m.handleCommandKey(msg)
+		}
+
+		// contact section: in-section form
+		if m.selected == m.contactIndex() {
+			if m.contactFormActive {
+				return m.handleContactFormKey(msg)
+			}
+			if msg.Type == tea.KeyEnter {
+				m.contactFormActive = true
+				m.contactField = 0
+				m.contactResult = ""
+				m.scrollPos = 0
+				return m, nil
+			}
+		}
+
+		// contribute section: intent flow owns left/right/tab/enter/esc
+		if m.selected == m.contributeIndex() {
+			switch msg.Type {
+			case tea.KeyLeft:
+				m.intentPrev()
+				return m, nil
+			case tea.KeyRight, tea.KeyTab:
+				m.intentNext()
+				return m, nil
+			case tea.KeyEnter:
+				m.intentToggle()
+				return m, nil
+			case tea.KeyEscape:
+				m.intentActive = -1
+				return m, nil
+			}
+		}
+
+		// number keys 1-8 jump to sections
+		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '8' {
+			m.jumpTo(int(s[0] - '1'))
 			return m, nil
 		}
 
@@ -104,6 +206,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 
+		case ":":
+			m.cmdMode = true
+			m.cmdInput = ""
+			m.cmdMsg = ""
+
 		case "j", "down":
 			m.navigateNext()
 		case "k", "up":
@@ -130,22 +237,177 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.scrollDown()
 			}
 
-		case "1":
-			m.jumpTo(0)
-		case "2":
-			m.jumpTo(1)
-		case "3":
-			m.jumpTo(2)
-		case "4":
-			m.jumpTo(3)
-		case "5":
-			m.jumpTo(4)
-		case "6":
-			m.jumpTo(5)
-
 		case "enter":
 			m.scrollPos = 0
 		}
+	}
+	return m, nil
+}
+
+// handleCommandKey processes keystrokes while the command bar is open.
+
+// -- contact wizard -----------------------------------------------------------
+
+// handleContactFormKey processes keystrokes while the in-section contact form
+// is open. Tab/Enter advance fields; Enter on the message field submits.
+func (m Model) handleContactFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.contactSubmitting {
+		return m, nil // HTTP in flight -- block input
+	}
+
+	switch msg.String() {
+	case "esc":
+		m.contactFormActive = false
+		m.contactField = 0
+		m.contactResult = ""
+		m.resetContact()
+		return m, nil
+
+	case "enter", "tab":
+		if m.contactField < 3 {
+			m.contactField++
+			return m, nil
+		}
+		// last field (message) + enter => submit
+		if strings.TrimSpace(m.contactName) == "" || strings.TrimSpace(m.contactMessage) == "" {
+			m.contactResult = "name and message are required"
+			m.contactResultOK = false
+			return m, nil
+		}
+		m.contactSubmitting = true
+		return m, sendContactCmd(
+			m.contactName, m.contactEmail,
+			m.contactSubject, m.contactMessage,
+		)
+
+	case "shift+tab", "up":
+		if m.contactField > 0 {
+			m.contactField--
+		}
+		return m, nil
+
+	case "down":
+		if m.contactField < 3 {
+			m.contactField++
+		}
+		return m, nil
+	}
+
+	field := m.contactFieldPtr()
+	if m.contactResult != "" && !m.contactResultOK {
+		m.contactResult = "" // clear validation hint once the user edits
+	}
+	switch {
+	case msg.Type == tea.KeyBackspace:
+		if len(*field) > 0 {
+			*field = (*field)[:len(*field)-1]
+		}
+	case msg.Type == tea.KeySpace, msg.Type == tea.KeyRunes:
+		if len(msg.Runes) > 0 {
+			*field += string(msg.Runes)
+		}
+	}
+	return m, nil
+}
+
+// contactFieldPtr returns a pointer to the field currently being edited.
+func (m *Model) contactFieldPtr() *string {
+	switch m.contactField {
+	case 0:
+		return &m.contactName
+	case 1:
+		return &m.contactEmail
+	case 2:
+		return &m.contactSubject
+	default:
+		return &m.contactMessage
+	}
+}
+
+func (m *Model) resetContact() {
+	m.contactName = ""
+	m.contactEmail = ""
+	m.contactSubject = ""
+	m.contactMessage = ""
+}
+
+// sendContactCmd fires an async HTTP POST to the contact API.
+func sendContactCmd(name, email, subject, message string) tea.Cmd {
+	const endpoint = "https://minecraft.arshadakl.in/api/contact"
+
+	return func() tea.Msg {
+		// Tag the subject so emails are traceable back to this portfolio.
+		if strings.TrimSpace(subject) != "" {
+			subject = "[from ssh portfolio] " + subject
+		} else {
+			subject = "[from ssh portfolio]"
+		}
+		body := map[string]string{
+			"name": name, "email": email,
+			"subject": subject, "message": message,
+		}
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return contactResultMsg{err: err}
+		}
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Post(endpoint, "application/json", bytes.NewReader(payload))
+		if err != nil {
+			return contactResultMsg{err: err}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			return contactResultMsg{err: fmt.Errorf("server returned %d", resp.StatusCode)}
+		}
+		return contactResultMsg{ok: true}
+	}
+}
+
+// handleCommandKey processes keystrokes while the command bar is open.
+func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEscape:
+		m.cmdMode = false
+		m.cmdInput = ""
+		return m, nil
+
+	case tea.KeyEnter:
+		res := execCommand(m.renderer, m.cmdInput)
+		m.cmdMode = false
+		m.cmdInput = ""
+		m.cmdMsg = res.message
+		if res.jump >= 0 {
+			m.jumpTo(res.jump)
+		}
+		if res.activate >= 0 {
+			m.jumpTo(m.contributeIndex())
+			m.intentCursor = res.activate
+			m.intentActive = res.activate
+			m.scrollToBottom()
+		}
+		if res.quit {
+			return m, tea.Quit
+		}
+		if res.startContact {
+			m.jumpTo(m.contactIndex())
+			m.contactFormActive = true
+			m.contactField = 0
+			m.contactResult = ""
+			m.scrollPos = 0
+		}
+		return m, nil
+
+	case tea.KeyBackspace:
+		if len(m.cmdInput) > 0 {
+			m.cmdInput = m.cmdInput[:len(m.cmdInput)-1]
+		}
+		return m, nil
+
+	case tea.KeySpace, tea.KeyRunes:
+		m.cmdInput += string(msg.Runes)
+		return m, nil
 	}
 	return m, nil
 }
@@ -154,6 +416,7 @@ func (m *Model) navigateNext() {
 	if m.selected < len(m.sections)-1 {
 		m.selected++
 		m.scrollPos = 0
+		m.autoOpenContact()
 	}
 }
 
@@ -161,6 +424,7 @@ func (m *Model) navigatePrev() {
 	if m.selected > 0 {
 		m.selected--
 		m.scrollPos = 0
+		m.autoOpenContact()
 	}
 }
 
@@ -169,6 +433,18 @@ func (m *Model) jumpTo(idx int) {
 		m.selected = idx
 		m.scrollPos = 0
 		m.mode = ViewNormal
+		m.autoOpenContact()
+	}
+}
+
+// autoOpenContact opens the message form the first time the visitor arrives at
+// the contact section so the form is immediately discoverable.
+func (m *Model) autoOpenContact() {
+	if m.selected == m.contactIndex() && !m.contactVisited {
+		m.contactVisited = true
+		m.contactFormActive = true
+		m.contactField = 0
+		m.contactResult = ""
 	}
 }
 
@@ -180,6 +456,46 @@ func (m *Model) scrollUp() {
 
 func (m *Model) scrollDown() {
 	m.scrollPos++
+}
+
+// scrollToBottom clamps into view in renderContent/renderNarrowContent.
+func (m *Model) scrollToBottom() {
+	m.scrollPos = 1 << 30
+}
+
+func (m *Model) intentNext() {
+	m.intentCursor = (m.intentCursor + 1) % len(intents)
+}
+
+func (m *Model) intentPrev() {
+	m.intentCursor = (m.intentCursor + len(intents) - 1) % len(intents)
+}
+
+func (m *Model) intentToggle() {
+	if m.intentActive == m.intentCursor {
+		m.intentActive = -1
+	} else {
+		m.intentActive = m.intentCursor
+		m.scrollToBottom()
+	}
+}
+
+func (m Model) contributeIndex() int {
+	for i, sec := range m.sections {
+		if sec.Key == "contribute" {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) contactIndex() int {
+	for i, sec := range m.sections {
+		if sec.Key == "contact" {
+			return i
+		}
+	}
+	return -1
 }
 
 func (m Model) View() string {
@@ -196,5 +512,23 @@ func (m Model) View() string {
 }
 
 func (m Model) visibleLines() []string {
-	return m.sections[m.selected].Lines
+	sec := m.sections[m.selected]
+	if sec.Key == "contribute" {
+		return buildContribute(m.renderer, m.intentCursor, m.intentActive)
+	}
+	if sec.Key == "contact" {
+		if m.contactFormActive {
+			return buildContactForm(m)
+		}
+		if m.contactResult != "" {
+			var status string
+			if m.contactResultOK {
+				status = styleGreen(m.renderer).Bold(true).Render("✓ " + m.contactResult)
+			} else {
+				status = styleDim(m.renderer).Render("✗ " + m.contactResult)
+			}
+			return append([]string{status, ""}, sec.Lines...)
+		}
+	}
+	return sec.Lines
 }
