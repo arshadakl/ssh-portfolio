@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +19,17 @@ import (
 func teaHandler(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	pty, _, _ := s.Pty()
 	renderer := bubbletea.MakeRenderer(s)
-	m := NewModel(renderer)
+
+	clientIP := ""
+	if addr := s.RemoteAddr(); addr != nil {
+		if host, _, err := net.SplitHostPort(addr.String()); err == nil {
+			clientIP = host
+		} else {
+			clientIP = addr.String()
+		}
+	}
+
+	m := NewModel(renderer, clientIP)
 	m.width = pty.Window.Width
 	m.height = pty.Window.Height
 	return m, []tea.ProgramOption{
@@ -34,9 +45,14 @@ func main() {
 	}
 	addr := "0.0.0.0:" + port
 
+	keyPath := os.Getenv("HOST_KEY_PATH")
+	if keyPath == "" {
+		keyPath = "/app/keys/id_ed25519"
+	}
+
 	s, err := wish.NewServer(
 		wish.WithAddress(addr),
-		wish.WithHostKeyPath("/app/keys/id_ed25519"),
+		wish.WithHostKeyPath(keyPath),
 		wish.WithMiddleware(
 			bubbletea.Middleware(teaHandler),
 			logging.Middleware(),
