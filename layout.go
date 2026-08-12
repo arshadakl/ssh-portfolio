@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -61,6 +62,9 @@ func (m Model) renderWideLayout() string {
 	sidebarW := m.sidebarWidth()
 	contentW := m.width - sidebarW - 1
 	bodyH := m.height - 2 - 1 // 2 header rows + 1 footer row
+	if m.cmdBarVisible() {
+		bodyH--
+	}
 
 	header  := m.renderHeader()
 	sidebar := m.renderSidebar(sidebarW, bodyH)
@@ -68,6 +72,9 @@ func (m Model) renderWideLayout() string {
 	body    := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
 	footer  := m.renderFooter(m.width, false)
 
+	if m.cmdBarVisible() {
+		return lipgloss.JoinVertical(lipgloss.Left, header, body, m.renderCommandBar(m.width), footer)
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
 }
 
@@ -86,7 +93,10 @@ func (m Model) sidebarWidth() int {
 
 func (m Model) renderHeader() string {
 	leftText  := styleOrange(m.renderer).Bold(true).Render("arshad@portfolio:~")
-	rightText := styleGreen(m.renderer).Render("online ●")
+	rightText := styleGreen(m.renderer).Render("● online")
+	if m.clientIP != "" {
+		rightText = styleDim(m.renderer).Render("visitor "+m.clientIP+"  ") + rightText
+	}
 
 	leftW  := lipgloss.Width(leftText)
 	rightW := lipgloss.Width(rightText)
@@ -134,11 +144,15 @@ func (m Model) renderSidebar(w, h int) string {
 	sb.WriteString(navLabel + "\n\n")
 
 	for i, sec := range m.sections {
+		label := sec.Label
+		if sec.Key == "contact" {
+			label = "💬 " + sec.Label
+		}
 		if i == m.selected {
-			row := styleOrange(m.renderer).Bold(true).Render(fmt.Sprintf("> [%d] %s", i+1, sec.Label))
+			row := stylePill(m.renderer).Padding(0, 1).Render(fmt.Sprintf("[%d] %s", i+1, label))
 			sb.WriteString(row + "\n")
 		} else {
-			row := styleDim(m.renderer).Render(fmt.Sprintf("  [%d] %s", i+1, sec.Label))
+			row := styleDim(m.renderer).Render(fmt.Sprintf(" [%d] %s", i+1, label))
 			sb.WriteString(row + "\n")
 		}
 	}
@@ -180,14 +194,25 @@ func (m Model) renderSidebar(w, h int) string {
 
 // ── content ───────────────────────────────────────────────────────────────────
 
+// renderDivider builds a labeled section divider: ──┤ label ├────────
+func (m Model) renderDivider(label string, w int) string {
+	pre  := "──┤ "
+	post := " ├"
+	fill := w - lipgloss.Width(pre+label+post)
+	if fill < 0 {
+		fill = 0
+	}
+	return styleDim(m.renderer).Render(pre) +
+		styleOrange(m.renderer).Bold(true).Render(label) +
+		styleDim(m.renderer).Render(post+strings.Repeat("─", fill))
+}
+
 func (m Model) renderContent(w, h int) string {
 	sec    := m.sections[m.selected]
 	innerW := w - 4
 
-	title  := styleOrange(m.renderer).Bold(true).Render(sec.Label)
-	sep    := styleDim(m.renderer).Render(strings.Repeat("─", innerW))
-	header := title + "\n" + sep + "\n"
-	const headerLines = 3
+	header := m.renderDivider(sec.Label, innerW) + "\n\n"
+	const headerLines = 2
 
 	lines     := m.visibleLines()
 	available := h - headerLines - 1
@@ -242,15 +267,24 @@ func (m Model) renderFooter(w int, narrow bool) string {
 	if narrow {
 		keys = styleDim(m.renderer).Render("←→") + styleText(m.renderer).Render(" navigate") +
 			"  " + styleOrange(m.renderer).Render("w/s") + styleText(m.renderer).Render(" scroll") +
+			"  " + styleDim(m.renderer).Render(":") + styleText(m.renderer).Render(" cmd") +
 			"  " + styleDim(m.renderer).Render("q") + styleText(m.renderer).Render(" quit")
 	} else {
 		keys = styleDim(m.renderer).Render("j/k ↑↓") + styleText(m.renderer).Render(" navigate") +
 			"  " + styleOrange(m.renderer).Render("w/s") + styleText(m.renderer).Render(" scroll") +
-			"  " + styleDim(m.renderer).Render("1-6") + styleText(m.renderer).Render(" jump") +
+			"  " + styleDim(m.renderer).Render("1-8") + styleText(m.renderer).Render(" jump") +
+			"  " + styleDim(m.renderer).Render(":") + styleText(m.renderer).Render(" cmd") +
 			"  " + styleDim(m.renderer).Render("q") + styleText(m.renderer).Render(" quit")
 	}
 
-	tip := styleDim(m.renderer).Render("mouse wheel scrolls content")
+	elapsed := time.Since(m.sessionStart).Round(time.Second)
+	timer := fmt.Sprintf("%02d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
+	var tip string
+	if narrow {
+		tip = styleDim(m.renderer).Render(timer)
+	} else {
+		tip = styleDim(m.renderer).Render("session " + timer)
+	}
 
 	keysW := lipgloss.Width(keys)
 	tipW  := lipgloss.Width(tip)
@@ -267,6 +301,33 @@ func (m Model) renderFooter(w int, narrow bool) string {
 		Render(keys + strings.Repeat(" ", gap) + tip)
 }
 
+// ── command bar ──────────────────────────────────────────────────────────────
+
+func (m Model) cmdBarVisible() bool {
+	return m.cmdMode || m.cmdMsg != ""
+}
+
+func (m Model) renderCommandBar(w int) string {
+	var content string
+
+	if m.cmdMode {
+		cursor := " "
+		if m.blinkOn {
+			cursor = styleOrange(m.renderer).Render("\u258A")
+		}
+		content = styleOrange(m.renderer).Bold(true).Render(":") +
+			styleText(m.renderer).Render(m.cmdInput) + cursor
+	} else {
+		content = m.cmdMsg
+	}
+
+	return m.renderer.NewStyle().
+		Background(colorStatusBg).
+		Width(w).
+		Padding(0, 1).
+		Render(content)
+}
+
 // ── narrow layout ─────────────────────────────────────────────────────────────
 
 func (m Model) renderNarrowLayout() string {
@@ -275,12 +336,18 @@ func (m Model) renderNarrowLayout() string {
 	content := m.renderNarrowContent()
 	footer  := m.renderFooter(m.width, true)
 
+	if m.cmdBarVisible() {
+		return lipgloss.JoinVertical(lipgloss.Left, header, navbar, content, m.renderCommandBar(m.width), footer)
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, navbar, content, footer)
 }
 
 func (m Model) renderNarrowHeader() string {
 	left  := styleOrange(m.renderer).Bold(true).Render("arshad@portfolio:~")
-	right := styleGreen(m.renderer).Render("online ●")
+	right := styleGreen(m.renderer).Render("● online")
+	if m.clientIP != "" && m.width >= 62 {
+		right = styleDim(m.renderer).Render("visitor "+m.clientIP+"  ") + right
+	}
 	gap   := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 4
 	if gap < 1 {
 		gap = 1
@@ -297,9 +364,14 @@ func (m Model) renderNarrowNavbar() string {
 	for i, sec := range m.sections {
 		var item string
 		if i == m.selected {
-			item = styleOrange(m.renderer).Bold(true).Padding(0, 1).Render("▸ " + sec.Label)
+			label := sec.Label
+			if sec.Key == "contact" {
+				label = "💬 " + sec.Label
+			}
+			item = stylePill(m.renderer).Padding(0, 1).Render(label)
 		} else {
-			item = styleDim(m.renderer).Padding(0, 1).Render(sec.Icon + " " + sec.Label)
+			// icon-only keeps 8 sections on one row in narrow terminals
+			item = styleDim(m.renderer).Padding(0, 1).Render(sec.Icon)
 		}
 		sb.WriteString(item)
 		if i < len(m.sections)-1 {
@@ -318,6 +390,9 @@ func (m Model) renderNarrowNavbar() string {
 
 func (m Model) renderNarrowContent() string {
 	h := m.height - 4
+	if m.cmdBarVisible() {
+		h--
+	}
 	if h < 1 {
 		h = 1
 	}
@@ -325,10 +400,8 @@ func (m Model) renderNarrowContent() string {
 	sec    := m.sections[m.selected]
 	innerW := m.width - 4
 
-	title  := styleOrange(m.renderer).Bold(true).Render(sec.Label)
-	sep    := styleDim(m.renderer).Render(strings.Repeat("─", innerW))
-	header := title + "\n" + sep + "\n"
-	const headerLines = 3
+	header := m.renderDivider(sec.Label, innerW) + "\n\n"
+	const headerLines = 2
 
 	lines     := m.visibleLines()
 	available := h - headerLines - 1
