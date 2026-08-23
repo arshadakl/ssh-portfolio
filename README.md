@@ -20,13 +20,13 @@ ssh arshadakl.in
 
 In the **contribute** section: `←/→` or `tab` chooses a visitor intent, `enter` expands it, `esc` collapses.
 
-In the **ask-ai** section, typing goes directly into the AI prompt. `enter` sends, `esc` returns to portfolio navigation, and `/help` lists the local AI commands.
+In the **ask my assistant** section, typing goes directly into the AI prompt. `enter` sends, `↑/↓` or the mouse wheel scrolls the transcript, `esc` returns to portfolio navigation, and `/clear` clears the conversation.
 
 ### Commands
 
 Open the command bar with `:`, then:
 
-- **Sections** — `home` `ask-ai` `whoami` `experience` `projects` `contribute` `recognition` `skills` `contact`
+- **Sections** — `home` `assistant` `whoami` `experience` `projects` `contribute` `recognition` `skills` `contact`
 - **Links** — `resume` `email` `github` `linkedin` `blog` `leetcode` (prints a copyable hyperlink)
 - **Shortcuts** — `hire` (jumps to contribute with "hiring a developer" expanded), `clear`, `help`, `quit`
 - **Contact form** — `message` or `msg` opens a step-by-step wizard that POSTs to the site's contact API
@@ -51,7 +51,7 @@ PORTFOLIO_RAG_URL=https://portfolio-rag.arshad-v2.workers.dev
 PORTFOLIO_RAG_SSH_TOKEN=your-shared-secret
 ```
 
-Both variables are required. The Go process reads them from its runtime environment; it does not contain a fallback Worker URL and does not automatically load `.env` files.
+Both variables are required. The Go process first respects values supplied by Docker, systemd, a shell, or another process manager, then fills missing values from `.env` in the working directory or beside the executable. It never overrides deployment-provided values and contains no fallback Worker URL.
 
 ## Build & Run
 

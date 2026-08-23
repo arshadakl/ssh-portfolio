@@ -63,11 +63,10 @@ type Model struct {
 	contactSubject    string
 	contactMessage    string
 
-	// ask-ai section (display transcript is local to this SSH connection)
+	// Assistant section (display transcript is local to this SSH connection)
 	chatClient          *portfolioChatClient
 	chatFocused         bool
 	chatInput           string
-	chatMode            string
 	chatPending         bool
 	chatClearPending    bool
 	chatPendingQuestion string
@@ -86,7 +85,6 @@ func NewModel(r *lipgloss.Renderer, clientIP string) Model {
 		sessionStart: time.Now(),
 		intentActive: -1,
 		chatClient:   newPortfolioChatClientFromEnv(clientIP),
-		chatMode:     "professional",
 	}
 }
 
@@ -183,11 +181,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode != ViewLoading && !m.cmdMode && !m.contactFormActive && msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				if m.scrollPos > 0 {
-					m.scrollPos--
-				}
+				m.scrollUp()
 			case tea.MouseButtonWheelDown:
-				m.scrollPos++
+				m.scrollDown()
 			}
 		}
 
@@ -201,7 +197,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleCommandKey(msg)
 		}
 
-		// ask-ai owns normal typing while its prompt is focused.
+		// The assistant owns normal typing while its prompt is focused.
 		if m.selected == m.chatIndex() {
 			if m.chatFocused {
 				return m.handleChatKey(msg)
@@ -319,6 +315,12 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEscape:
 		m.chatFocused = false
 		return m, nil
+	case tea.KeyUp:
+		m.scrollUp()
+		return m, nil
+	case tea.KeyDown:
+		m.scrollDown()
+		return m, nil
 	case tea.KeyPgUp:
 		for i := 0; i < 10; i++ {
 			m.scrollUp()
@@ -402,7 +404,7 @@ func (m Model) submitChatInput() (tea.Model, tea.Cmd) {
 	m.chatError = ""
 	m.chatNotice = ""
 	m.scrollToBottom()
-	return m, sendChatCmd(m.chatClient, question, m.chatMode)
+	return m, sendChatCmd(m.chatClient, question, "professional")
 }
 
 func (m Model) handleChatCommand(input string) (tea.Model, tea.Cmd) {
@@ -410,15 +412,6 @@ func (m Model) handleChatCommand(input string) (tea.Model, tea.Cmd) {
 	m.chatInput = ""
 	m.chatError = ""
 	switch parts[0] {
-	case "/help":
-		m.chatNotice = "/mode professional · /mode chaos · /clear · esc to navigate"
-	case "/mode":
-		if len(parts) != 2 || (parts[1] != "professional" && parts[1] != "chaos") {
-			m.chatError = "Usage: /mode professional or /mode chaos"
-			break
-		}
-		m.chatMode = parts[1]
-		m.chatNotice = "Assistant mode changed to " + parts[1] + "."
 	case "/clear":
 		m.chatTurns = nil
 		m.chatPendingQuestion = ""
@@ -427,7 +420,7 @@ func (m Model) handleChatCommand(input string) (tea.Model, tea.Cmd) {
 		m.scrollPos = 0
 		return m, clearChatCmd(m.chatClient)
 	default:
-		m.chatError = "Unknown AI command. Try /help."
+		m.chatError = "Unknown AI command. Available command: /clear."
 	}
 	m.scrollToBottom()
 	return m, nil
@@ -645,18 +638,49 @@ func (m *Model) autoOpenContact() {
 }
 
 func (m *Model) scrollUp() {
+	m.clampScroll()
 	if m.scrollPos > 0 {
 		m.scrollPos--
 	}
 }
 
 func (m *Model) scrollDown() {
-	m.scrollPos++
+	m.clampScroll()
+	if m.scrollPos < m.maxScroll() {
+		m.scrollPos++
+	}
 }
 
-// scrollToBottom clamps into view in renderContent/renderNarrowContent.
 func (m *Model) scrollToBottom() {
-	m.scrollPos = 1 << 30
+	m.scrollPos = m.maxScroll()
+}
+
+func (m *Model) clampScroll() {
+	maximum := m.maxScroll()
+	if m.scrollPos > maximum {
+		m.scrollPos = maximum
+	}
+	if m.scrollPos < 0 {
+		m.scrollPos = 0
+	}
+}
+
+func (m Model) maxScroll() int {
+	available := m.height - 6
+	if m.isNarrow() {
+		available = m.height - 7
+	}
+	if m.cmdBarVisible() {
+		available--
+	}
+	if available < 1 {
+		available = 1
+	}
+	maximum := len(m.visibleLines()) - available
+	if maximum < 0 {
+		return 0
+	}
+	return maximum
 }
 
 func (m *Model) intentNext() {

@@ -17,9 +17,7 @@ import (
 func testRenderer() *lipgloss.Renderer { return lipgloss.NewRenderer(io.Discard) }
 
 func TestPortfolioChatConfigurationComesOnlyFromEnvironment(t *testing.T) {
-	t.Setenv("PORTFOLIO_RAG_URL", "")
-	t.Setenv("PORTFOLIO_RAG_SSH_TOKEN", "")
-	client := newPortfolioChatClientFromEnv("203.0.113.8")
+	client := newPortfolioChatClient("", "", "203.0.113.8")
 	if client.configErr == nil || client.configErr.Error() != "PORTFOLIO_RAG_URL is not configured" {
 		t.Fatalf("missing URL error = %v", client.configErr)
 	}
@@ -225,7 +223,11 @@ func TestAskAIInputFocusCommandsAndLimits(t *testing.T) {
 	m.width, m.height, m.mode = 100, 35, ViewNormal
 	m.jumpTo(m.chatIndex())
 	if !m.chatFocused {
-		t.Fatal("ask-ai did not auto-focus")
+		t.Fatal("assistant did not auto-focus")
+	}
+	section := m.sections[m.chatIndex()]
+	if section.Label != "ask my assistant" || section.Icon != "🤖" {
+		t.Fatalf("assistant navigation identity = label %q icon %q", section.Label, section.Icon)
 	}
 
 	longInput := []rune(strings.Repeat("界", chatQuestionLimit+10))
@@ -240,11 +242,17 @@ func TestAskAIInputFocusCommandsAndLimits(t *testing.T) {
 		t.Fatalf("backspace runes = %d", got)
 	}
 
-	m.chatInput = "/mode chaos"
+	m.chatInput = "/help"
 	updated, cmd := m.submitChatInput()
 	m = updated.(Model)
-	if cmd != nil || m.chatMode != "chaos" {
-		t.Fatalf("mode command failed: mode=%q cmd=%v", m.chatMode, cmd)
+	if cmd != nil || !strings.Contains(m.chatError, "Available command: /clear") {
+		t.Fatalf("removed help command was still accepted: error=%q cmd=%v", m.chatError, cmd)
+	}
+	m.chatInput = "/mode chaos"
+	updated, cmd = m.submitChatInput()
+	m = updated.(Model)
+	if cmd != nil || !strings.Contains(m.chatError, "Available command: /clear") {
+		t.Fatalf("removed mode command was still accepted: error=%q cmd=%v", m.chatError, cmd)
 	}
 	m.chatPending = true
 	m.chatInput = "blocked duplicate"
@@ -262,5 +270,56 @@ func TestAskAIInputFocusCommandsAndLimits(t *testing.T) {
 	m.jumpTo(8)
 	if m.sections[m.selected].Key != "contact" {
 		t.Fatalf("section 9 = %q", m.sections[m.selected].Key)
+	}
+}
+
+func TestAssistantTranscriptScrollsWhilePromptIsFocused(t *testing.T) {
+	m := NewModel(testRenderer(), "203.0.113.9")
+	m.width, m.height, m.mode = 100, 18, ViewNormal
+	m.jumpTo(m.chatIndex())
+	for index := 0; index < 10; index++ {
+		m.chatTurns = append(m.chatTurns, chatTurn{
+			Question: "Tell me about another project.",
+			Response: chatResponse{Answer: "This is a detailed assistant response that occupies transcript space."},
+		})
+	}
+	m.scrollToBottom()
+	bottom := m.scrollPos
+	if bottom == 0 {
+		t.Fatal("test transcript did not overflow the viewport")
+	}
+
+	updated, _ := m.handleChatKey(tea.KeyMsg{Type: tea.KeyUp})
+	m = updated.(Model)
+	if m.scrollPos != bottom-1 {
+		t.Fatalf("focused up key did not scroll: got %d, want %d", m.scrollPos, bottom-1)
+	}
+	updated, _ = m.handleChatKey(tea.KeyMsg{Type: tea.KeyDown})
+	m = updated.(Model)
+	if m.scrollPos != bottom {
+		t.Fatalf("focused down key did not scroll: got %d, want %d", m.scrollPos, bottom)
+	}
+
+	// Old bottom-following used a huge sentinel that made wheel-up appear stuck.
+	m.scrollPos = 1 << 30
+	m.scrollUp()
+	if m.scrollPos != bottom-1 {
+		t.Fatalf("out-of-range scroll was not clamped before moving up: got %d, want %d", m.scrollPos, bottom-1)
+	}
+}
+
+func TestAskAIViewHidesResponseSources(t *testing.T) {
+	m := NewModel(testRenderer(), "203.0.113.9")
+	m.chatTurns = []chatTurn{{
+		Question: "What did you build?",
+		Response: chatResponse{
+			Answer:  "A portfolio.",
+			Sources: []string{"private-source-label"},
+		},
+	}}
+
+	view := strings.Join(buildChat(m, 80), "\n")
+	if strings.Contains(view, "Sources:") || strings.Contains(view, "private-source-label") {
+		t.Fatalf("chat view exposed response sources: %q", view)
 	}
 }
