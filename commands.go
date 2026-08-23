@@ -25,7 +25,7 @@ func execCommand(r *lipgloss.Renderer, input string) commandResult {
 		return res
 	}
 
-	dim  := styleDim(r)
+	dim := styleDim(r)
 	link := styleLink(r)
 
 	linkMsg := func(label, url, display string) string {
@@ -34,7 +34,7 @@ func execCommand(r *lipgloss.Renderer, input string) commandResult {
 
 	// section navigation by name or number
 	sections := map[string]int{
-		"home": 0, "ask-ai": 1, "ai": 1, "ask": 1, "whoami": 2,
+		"home": 0, "assistant": 1, "ask-my-assistant": 1, "ask-ai": 1, "ai": 1, "ask": 1, "whoami": 2,
 		"experience": 3, "projects": 4, "contribute": 5,
 		"recognition": 6, "skills": 7, "contact": 8,
 		"1": 0, "2": 1, "3": 2, "4": 3, "5": 4,
@@ -47,7 +47,7 @@ func execCommand(r *lipgloss.Renderer, input string) commandResult {
 
 	switch cmd {
 	case "help", "?":
-		res.message = dim.Render("ask-ai · resume · email · github · linkedin · blog · hire · message · <section> · quit")
+		res.message = dim.Render("assistant · resume · email · github · linkedin · blog · hire · message · <section> · quit")
 
 	case "resume", "cv":
 		res.message = linkMsg("resume", "https://arshadakl.in/docs/arshad_2026.pdf", "arshadakl.in/docs/arshad_2026.pdf")
