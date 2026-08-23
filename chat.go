@@ -85,6 +85,9 @@ type portfolioChatClient struct {
 }
 
 func newPortfolioChatClientFromEnv(clientIP string) *portfolioChatClient {
+	// Re-check local configuration for every SSH session. This also supports a
+	// .env file created after the server process started.
+	_ = loadEnvironment()
 	return newPortfolioChatClient(
 		os.Getenv("PORTFOLIO_RAG_URL"),
 		os.Getenv("PORTFOLIO_RAG_SSH_TOKEN"),
