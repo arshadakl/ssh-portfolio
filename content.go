@@ -43,6 +43,7 @@ func buildHome(r *lipgloss.Renderer) []string {
 	// metric card: rounded border, bold value over dim label
 	card := func(value, label string) string {
 		return r.NewStyle().
+			Background(colorPanel).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder).
 			Width(20).

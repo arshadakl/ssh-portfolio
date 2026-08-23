@@ -2,18 +2,20 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
-// Palette: Tokyo Night neutrals + brand orange hero accent (arshadakl.in).
+// Palette: warm, muted terminal colors inspired by Claude Code.
 var (
-	colorBg       = lipgloss.Color("#1a1b26") // deep blue-black background
-	colorText     = lipgloss.Color("#c0caf5") // soft lavender-white body text
-	colorDim      = lipgloss.Color("#565f89") // muted slate secondary text
-	colorBorder   = lipgloss.Color("#3b4261") // panel borders and dividers
-	colorStatusBg = lipgloss.Color("#1f2335") // footer/command bar background
-	colorOrange   = lipgloss.Color("#D9651A") // brand orange — hero accent
-	colorGreen    = lipgloss.Color("#9ece6a") // metrics / open-to-work
-	colorLink     = lipgloss.Color("#7aa2f7") // clickable hyperlinks
-	colorPurple   = lipgloss.Color("#bb9af7") // secondary highlights
-	colorPink     = lipgloss.Color("#f7768e") // security/recognition accents
+	colorBg         = lipgloss.Color("#151513") // warm charcoal background
+	colorPanel      = lipgloss.Color("#1D1D1A") // cards and raised surfaces
+	colorText       = lipgloss.Color("#E7D9C4") // warm cream primary text
+	colorDim        = lipgloss.Color("#A79C89") // warm taupe secondary text
+	colorBorder     = lipgloss.Color("#615D51") // muted warm borders and dividers
+	colorStatusBg   = lipgloss.Color("#1D1D1A") // footer/command bar background
+	colorOrange     = lipgloss.Color("#E97B55") // primary coral accent
+	colorAccentSoft = lipgloss.Color("#EF875F") // selected navigation highlight
+	colorGreen      = lipgloss.Color("#B6D56A") // online / open-to-work status
+	colorLink       = lipgloss.Color("#81938D") // muted teal hyperlinks
+	colorPurple     = lipgloss.Color("#81938D") // muted teal secondary highlights
+	colorPink       = lipgloss.Color("#E97B55") // recognition accent
 )
 
 func styleOrange(r *lipgloss.Renderer) lipgloss.Style { return r.NewStyle().Foreground(colorOrange) }
@@ -24,7 +26,7 @@ func styleLink(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Fore
 func stylePurple(r *lipgloss.Renderer) lipgloss.Style { return r.NewStyle().Foreground(colorPurple) }
 func stylePink(r *lipgloss.Renderer) lipgloss.Style   { return r.NewStyle().Foreground(colorPink) }
 
-// stylePill renders the selected navigation item: dark text on brand orange.
+// stylePill renders the selected navigation item: dark text on soft coral.
 func stylePill(r *lipgloss.Renderer) lipgloss.Style {
-	return r.NewStyle().Background(colorOrange).Foreground(colorBg).Bold(true)
+	return r.NewStyle().Background(colorAccentSoft).Foreground(colorBg).Bold(true)
 }
