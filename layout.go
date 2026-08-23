@@ -272,7 +272,7 @@ func (m Model) renderFooter(w int, narrow bool) string {
 	} else {
 		keys = styleDim(m.renderer).Render("j/k ↑↓") + styleText(m.renderer).Render(" navigate") +
 			"  " + styleOrange(m.renderer).Render("w/s") + styleText(m.renderer).Render(" scroll") +
-			"  " + styleDim(m.renderer).Render("1-8") + styleText(m.renderer).Render(" jump") +
+			"  " + styleDim(m.renderer).Render("1-9") + styleText(m.renderer).Render(" jump") +
 			"  " + styleDim(m.renderer).Render(":") + styleText(m.renderer).Render(" cmd") +
 			"  " + styleDim(m.renderer).Render("q") + styleText(m.renderer).Render(" quit")
 	}
@@ -370,7 +370,7 @@ func (m Model) renderNarrowNavbar() string {
 			}
 			item = stylePill(m.renderer).Padding(0, 1).Render(label)
 		} else {
-			// icon-only keeps 8 sections on one row in narrow terminals
+			// icon-only keeps all sections on one row in narrow terminals
 			item = styleDim(m.renderer).Padding(0, 1).Render(sec.Icon)
 		}
 		sb.WriteString(item)

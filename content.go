@@ -22,6 +22,7 @@ func hyperlink(url, text string) string {
 func buildSections(r *lipgloss.Renderer) []Section {
 	return []Section{
 		{Key: "home", Label: "home", Icon: "⌂", Lines: buildHome(r)},
+		{Key: "ask-ai", Label: "ask-ai", Icon: "✦", Lines: nil},
 		{Key: "whoami", Label: "whoami", Icon: "◈", Lines: buildWhoami(r)},
 		{Key: "experience", Label: "experience", Icon: "▸", Lines: buildExperience(r)},
 		{Key: "projects", Label: "projects", Icon: "⬡", Lines: buildProjects(r)},
@@ -76,7 +77,7 @@ func buildHome(r *lipgloss.Renderer) []string {
 		"",
 		green.Render("Open to: ")+text.Render("Frontend Engineer · Full-stack Engineer roles"),
 		"",
-		dim.Render("j/k or 1-8 navigate · w/s or wheel scroll"),
+		dim.Render("j/k or 1-9 navigate · w/s or wheel scroll"),
 		dim.Render("':' commands · ':message' to send a note · 'q' quit"),
 	)
 }
