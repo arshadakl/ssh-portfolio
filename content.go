@@ -22,6 +22,7 @@ func hyperlink(url, text string) string {
 func buildSections(r *lipgloss.Renderer) []Section {
 	return []Section{
 		{Key: "home", Label: "home", Icon: "⌂", Lines: buildHome(r)},
+		{Key: "ask-ai", Label: "ask my assistant", Icon: "🤖", Lines: nil},
 		{Key: "whoami", Label: "whoami", Icon: "◈", Lines: buildWhoami(r)},
 		{Key: "experience", Label: "experience", Icon: "▸", Lines: buildExperience(r)},
 		{Key: "projects", Label: "projects", Icon: "⬡", Lines: buildProjects(r)},
@@ -35,14 +36,15 @@ func buildSections(r *lipgloss.Renderer) []Section {
 
 func buildHome(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	green  := styleGreen(r).Bold(true)
-	text   := styleText(r)
-	pink   := stylePink(r)
+	dim := styleDim(r)
+	green := styleGreen(r).Bold(true)
+	text := styleText(r)
+	pink := stylePink(r)
 
 	// metric card: rounded border, bold value over dim label
 	card := func(value, label string) string {
 		return r.NewStyle().
+			Background(colorPanel).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder).
 			Width(20).
@@ -75,16 +77,16 @@ func buildHome(r *lipgloss.Renderer) []string {
 		"",
 		green.Render("Open to: ")+text.Render("Frontend Engineer · Full-stack Engineer roles"),
 		"",
-		dim.Render("j/k or 1-8 navigate · w/s or wheel scroll"),
+		dim.Render("j/k or 1-9 navigate · w/s or wheel scroll"),
 		dim.Render("':' commands · ':message' to send a note · 'q' quit"),
 	)
 }
 
 func buildWhoami(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	green  := styleGreen(r)
-	text   := styleText(r)
-	pink   := stylePink(r)
+	green := styleGreen(r)
+	text := styleText(r)
+	pink := stylePink(r)
 
 	return []string{
 		orange.Render("Arshad A."),
@@ -113,9 +115,9 @@ func buildWhoami(r *lipgloss.Renderer) []string {
 
 func buildExperience(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	green  := styleGreen(r)
-	text   := styleText(r)
+	dim := styleDim(r)
+	green := styleGreen(r)
+	text := styleText(r)
 
 	return []string{
 		orange.Render("ELT Global Pvt Ltd") + text.Render(" — Software Engineer"),
@@ -154,9 +156,9 @@ func buildExperience(r *lipgloss.Renderer) []string {
 
 func buildProjects(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	green  := styleGreen(r)
-	link   := styleLink(r)
+	dim := styleDim(r)
+	green := styleGreen(r)
+	link := styleLink(r)
 
 	return []string{
 		orange.Render("Triple i Admin Portal"),
@@ -296,10 +298,10 @@ func buildProjects(r *lipgloss.Renderer) []string {
 
 func buildRecognition(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	green  := styleGreen(r)
-	text   := styleText(r)
-	link   := styleLink(r)
+	dim := styleDim(r)
+	green := styleGreen(r)
+	text := styleText(r)
+	link := styleLink(r)
 
 	return []string{
 		stylePink(r).Bold(true).Render("CERT-In Hall of Fame") + text.Render(" — Government of India"),
@@ -329,8 +331,8 @@ func buildRecognition(r *lipgloss.Renderer) []string {
 
 func buildSkills(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	green  := styleGreen(r)
-	dim    := styleDim(r)
+	green := styleGreen(r)
+	dim := styleDim(r)
 
 	return []string{
 		orange.Render("> Tech"),
@@ -354,10 +356,10 @@ func buildSkills(r *lipgloss.Renderer) []string {
 
 func buildContact(r *lipgloss.Renderer) []string {
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	text   := styleText(r)
-	link   := styleLink(r)
-	green  := styleGreen(r)
+	dim := styleDim(r)
+	text := styleText(r)
+	link := styleLink(r)
+	green := styleGreen(r)
 
 	btn := func(label string) string {
 		return stylePill(r).Padding(0, 1).Render(label)
@@ -411,8 +413,8 @@ func buildContact(r *lipgloss.Renderer) []string {
 func buildContactForm(m Model) []string {
 	r := m.renderer
 	orange := styleOrange(r).Bold(true)
-	dim    := styleDim(r)
-	text   := styleText(r)
+	dim := styleDim(r)
+	text := styleText(r)
 
 	if m.contactSubmitting {
 		return []string{

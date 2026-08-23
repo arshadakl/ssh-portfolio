@@ -62,6 +62,18 @@ type Model struct {
 	contactEmail      string
 	contactSubject    string
 	contactMessage    string
+
+	// Assistant section (display transcript is local to this SSH connection)
+	chatClient          *portfolioChatClient
+	chatFocused         bool
+	chatInput           string
+	chatPending         bool
+	chatClearPending    bool
+	chatPendingQuestion string
+	chatTurns           []chatTurn
+	chatNotice          string
+	chatError           string
+	chatSpinner         int
 }
 
 func NewModel(r *lipgloss.Renderer, clientIP string) Model {
@@ -72,6 +84,7 @@ func NewModel(r *lipgloss.Renderer, clientIP string) Model {
 		clientIP:     clientIP,
 		sessionStart: time.Now(),
 		intentActive: -1,
+		chatClient:   newPortfolioChatClientFromEnv(clientIP),
 	}
 }
 
@@ -82,6 +95,20 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) isNarrow() bool { return m.width < 70 }
+
+func (m Model) contentInnerWidth() int {
+	if m.isNarrow() {
+		if width := m.width - 4; width > 0 {
+			return width
+		}
+		return 1
+	}
+	width := m.width - m.sidebarWidth() - 5
+	if width < 1 {
+		return 1
+	}
+	return width
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -104,6 +131,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// 1s heartbeat drives the footer session timer and cursor blink
 		m.blinkOn = !m.blinkOn
+		m.chatSpinner = (m.chatSpinner + 1) % 4
 		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
 			return tickMsg(t)
 		})
@@ -122,15 +150,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case chatResultMsg:
+		m.chatPending = false
+		m.chatPendingQuestion = ""
+		if msg.err != nil {
+			m.chatInput = msg.question
+			m.chatError = chatErrorMessage(msg.err)
+			m.chatNotice = ""
+		} else {
+			m.chatTurns = append(m.chatTurns, chatTurn{Question: msg.question, Response: msg.response})
+			m.chatInput = ""
+			m.chatError = ""
+			m.chatNotice = ""
+		}
+		m.scrollToBottom()
+		return m, nil
+
+	case chatClearResultMsg:
+		m.chatClearPending = false
+		if msg.err != nil {
+			m.chatError = "Visible chat cleared, but the server session could not be cleared; it expires automatically."
+		} else {
+			m.chatNotice = "Conversation cleared."
+			m.chatError = ""
+		}
+		m.scrollToBottom()
+		return m, nil
+
 	case tea.MouseMsg:
 		if m.mode != ViewLoading && !m.cmdMode && !m.contactFormActive && msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				if m.scrollPos > 0 {
-					m.scrollPos--
-				}
+				m.scrollUp()
 			case tea.MouseButtonWheelDown:
-				m.scrollPos++
+				m.scrollDown()
 			}
 		}
 
@@ -142,6 +195,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// command bar captures all input while open
 		if m.cmdMode {
 			return m.handleCommandKey(msg)
+		}
+
+		// The assistant owns normal typing while its prompt is focused.
+		if m.selected == m.chatIndex() {
+			if m.chatFocused {
+				return m.handleChatKey(msg)
+			}
+			if msg.Type == tea.KeyEnter {
+				m.chatFocused = true
+				m.chatError = ""
+				m.scrollToBottom()
+				return m, nil
+			}
 		}
 
 		// contact section: in-section form
@@ -176,8 +242,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// number keys 1-8 jump to sections
-		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '8' {
+		// number keys 1-9 jump to sections
+		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
 			m.jumpTo(int(s[0] - '1'))
 			return m, nil
 		}
@@ -241,6 +307,122 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scrollPos = 0
 		}
 	}
+	return m, nil
+}
+
+func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEscape:
+		m.chatFocused = false
+		return m, nil
+	case tea.KeyUp:
+		m.scrollUp()
+		return m, nil
+	case tea.KeyDown:
+		m.scrollDown()
+		return m, nil
+	case tea.KeyPgUp:
+		for i := 0; i < 10; i++ {
+			m.scrollUp()
+		}
+		return m, nil
+	case tea.KeyPgDown:
+		for i := 0; i < 10; i++ {
+			m.scrollDown()
+		}
+		return m, nil
+	case tea.KeyBackspace:
+		runes := []rune(m.chatInput)
+		if len(runes) > 0 && !m.chatPending && !m.chatClearPending {
+			m.chatInput = string(runes[:len(runes)-1])
+		}
+		return m, nil
+	case tea.KeyEnter:
+		return m.submitChatInput()
+	}
+
+	switch msg.String() {
+	case "ctrl+c":
+		if !m.chatPending && !m.chatClearPending {
+			if m.chatInput == "" {
+				m.chatFocused = false
+			} else {
+				m.chatInput = ""
+			}
+		}
+		return m, nil
+	case "ctrl+u":
+		for i := 0; i < 10; i++ {
+			m.scrollUp()
+		}
+		return m, nil
+	case "ctrl+d":
+		for i := 0; i < 10; i++ {
+			m.scrollDown()
+		}
+		return m, nil
+	}
+
+	if (msg.Type == tea.KeySpace || msg.Type == tea.KeyRunes) && !m.chatPending && !m.chatClearPending {
+		remaining := chatQuestionLimit - len([]rune(m.chatInput))
+		if remaining > 0 {
+			runes := msg.Runes
+			if len(runes) > remaining {
+				runes = runes[:remaining]
+			}
+			m.chatInput += string(runes)
+			m.chatError = ""
+			m.chatNotice = ""
+			m.scrollToBottom()
+		}
+	}
+	return m, nil
+}
+
+func (m Model) submitChatInput() (tea.Model, tea.Cmd) {
+	if m.chatPending || m.chatClearPending {
+		return m, nil
+	}
+	question := strings.TrimSpace(m.chatInput)
+	if question == "" {
+		return m, nil
+	}
+	if strings.HasPrefix(question, "/") {
+		return m.handleChatCommand(question)
+	}
+	if m.chatClient == nil || m.chatClient.configErr != nil {
+		reason := "chat client is unavailable"
+		if m.chatClient != nil && m.chatClient.configErr != nil {
+			reason = m.chatClient.configErr.Error()
+		}
+		m.chatError = "AI is unavailable: " + reason
+		return m, nil
+	}
+	m.chatPending = true
+	m.chatPendingQuestion = question
+	m.chatInput = ""
+	m.chatError = ""
+	m.chatNotice = ""
+	m.scrollToBottom()
+	return m, sendChatCmd(m.chatClient, question, "professional")
+}
+
+func (m Model) handleChatCommand(input string) (tea.Model, tea.Cmd) {
+	parts := strings.Fields(strings.ToLower(input))
+	m.chatInput = ""
+	m.chatError = ""
+	switch parts[0] {
+	case "/clear":
+		m.chatTurns = nil
+		m.chatPendingQuestion = ""
+		m.chatNotice = ""
+		m.chatClearPending = true
+		m.scrollPos = 0
+		return m, clearChatCmd(m.chatClient)
+	default:
+		m.chatError = "Unknown AI command. Available command: /clear."
+	}
+	m.scrollToBottom()
 	return m, nil
 }
 
@@ -417,6 +599,7 @@ func (m *Model) navigateNext() {
 		m.selected++
 		m.scrollPos = 0
 		m.autoOpenContact()
+		m.autoFocusChat()
 	}
 }
 
@@ -425,6 +608,7 @@ func (m *Model) navigatePrev() {
 		m.selected--
 		m.scrollPos = 0
 		m.autoOpenContact()
+		m.autoFocusChat()
 	}
 }
 
@@ -434,7 +618,12 @@ func (m *Model) jumpTo(idx int) {
 		m.scrollPos = 0
 		m.mode = ViewNormal
 		m.autoOpenContact()
+		m.autoFocusChat()
 	}
+}
+
+func (m *Model) autoFocusChat() {
+	m.chatFocused = m.selected == m.chatIndex()
 }
 
 // autoOpenContact opens the message form the first time the visitor arrives at
@@ -449,18 +638,49 @@ func (m *Model) autoOpenContact() {
 }
 
 func (m *Model) scrollUp() {
+	m.clampScroll()
 	if m.scrollPos > 0 {
 		m.scrollPos--
 	}
 }
 
 func (m *Model) scrollDown() {
-	m.scrollPos++
+	m.clampScroll()
+	if m.scrollPos < m.maxScroll() {
+		m.scrollPos++
+	}
 }
 
-// scrollToBottom clamps into view in renderContent/renderNarrowContent.
 func (m *Model) scrollToBottom() {
-	m.scrollPos = 1 << 30
+	m.scrollPos = m.maxScroll()
+}
+
+func (m *Model) clampScroll() {
+	maximum := m.maxScroll()
+	if m.scrollPos > maximum {
+		m.scrollPos = maximum
+	}
+	if m.scrollPos < 0 {
+		m.scrollPos = 0
+	}
+}
+
+func (m Model) maxScroll() int {
+	available := m.height - 6
+	if m.isNarrow() {
+		available = m.height - 7
+	}
+	if m.cmdBarVisible() {
+		available--
+	}
+	if available < 1 {
+		available = 1
+	}
+	maximum := len(m.visibleLines()) - available
+	if maximum < 0 {
+		return 0
+	}
+	return maximum
 }
 
 func (m *Model) intentNext() {
@@ -483,6 +703,15 @@ func (m *Model) intentToggle() {
 func (m Model) contributeIndex() int {
 	for i, sec := range m.sections {
 		if sec.Key == "contribute" {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) chatIndex() int {
+	for i, sec := range m.sections {
+		if sec.Key == "ask-ai" {
 			return i
 		}
 	}
@@ -513,6 +742,9 @@ func (m Model) View() string {
 
 func (m Model) visibleLines() []string {
 	sec := m.sections[m.selected]
+	if sec.Key == "ask-ai" {
+		return buildChat(m, m.contentInnerWidth())
+	}
 	if sec.Key == "contribute" {
 		return buildContribute(m.renderer, m.intentCursor, m.intentActive)
 	}

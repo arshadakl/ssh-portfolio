@@ -39,6 +39,16 @@ func teaHandler(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 }
 
 func main() {
+	if err := loadEnvironment(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not fully load .env: %v\n", err)
+	}
+	chatConfig := newPortfolioChatClientFromEnv("")
+	if chatConfig.configErr != nil {
+		fmt.Fprintf(os.Stderr, "Portfolio RAG unavailable: %v\n", chatConfig.configErr)
+	} else {
+		fmt.Printf("Portfolio RAG configured for %s\n", chatConfig.baseURL.Host)
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "22"

@@ -14,17 +14,19 @@ ssh arshadakl.in
 | --- | --- |
 | `j/k` or `↑/↓` | Navigate sections |
 | `w/s` or mouse wheel | Scroll content |
-| `1-8` | Jump to section |
+| `1-9` | Jump to section |
 | `:` | Open command bar |
 | `q` | Quit |
 
 In the **contribute** section: `←/→` or `tab` chooses a visitor intent, `enter` expands it, `esc` collapses.
 
+In the **ask my assistant** section, typing goes directly into the AI prompt. `enter` sends, `↑/↓` or the mouse wheel scrolls the transcript, `esc` returns to portfolio navigation, and `/clear` clears the conversation.
+
 ### Commands
 
 Open the command bar with `:`, then:
 
-- **Sections** — `home` `whoami` `experience` `projects` `contribute` `recognition` `skills` `contact`
+- **Sections** — `home` `assistant` `whoami` `experience` `projects` `contribute` `recognition` `skills` `contact`
 - **Links** — `resume` `email` `github` `linkedin` `blog` `leetcode` (prints a copyable hyperlink)
 - **Shortcuts** — `hire` (jumps to contribute with "hiring a developer" expanded), `clear`, `help`, `quit`
 - **Contact form** — `message` or `msg` opens a step-by-step wizard that POSTs to the site's contact API
@@ -41,6 +43,15 @@ PORT=2222 HOST_KEY_PATH=keys/id_ed25519 go run .
 # connect
 ssh -p 2222 localhost
 ```
+
+The AI section calls the deployed Portfolio RAG Worker. Configure the trusted client token before starting:
+
+```bash
+PORTFOLIO_RAG_URL=https://portfolio-rag.arshad-v2.workers.dev
+PORTFOLIO_RAG_SSH_TOKEN=your-shared-secret
+```
+
+Both variables are required. The Go process first respects values supplied by Docker, systemd, a shell, or another process manager, then fills missing values from `.env` in the working directory or beside the executable. It never overrides deployment-provided values and contains no fallback Worker URL.
 
 ## Build & Run
 
