@@ -272,7 +272,7 @@ func buildChat(m Model, width int) []string {
 	}
 	lines := []string{
 		styleOrange(m.renderer).Bold(true).Render("✦ ask-arshad") +
-			styleDim(m.renderer).Render("  ["+m.chatMode+"]  ") + status,
+			styleDim(m.renderer).Render("  ") + status,
 		"",
 	}
 
@@ -304,11 +304,6 @@ func buildChat(m Model, width int) []string {
 		}
 		lines = append(lines, "", styleLink(m.renderer).Bold(true).Render("Arshad AI"))
 		lines = append(lines, renderResponseLines(m, turn.Response, width-2)...)
-		if turn.Response.Format != "json" && len(turn.Response.Sources) > 0 {
-			for _, line := range wrapTerminalText("Sources: "+strings.Join(cleanStrings(turn.Response.Sources), " · "), width) {
-				lines = append(lines, styleDim(m.renderer).Render(line))
-			}
-		}
 		lines = append(lines, "")
 	}
 
@@ -354,6 +349,6 @@ func buildChat(m Model, width int) []string {
 	} else {
 		lines = append(lines, styleDim(m.renderer).Render("press enter to focus the AI prompt"))
 	}
-	lines = append(lines, styleDim(m.renderer).Render("enter send · esc navigate · /mode · /clear · /help"))
+	lines = append(lines, styleDim(m.renderer).Render("enter send · ↑↓/wheel scroll · esc navigate · /clear"))
 	return lines
 }
